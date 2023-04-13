@@ -17,19 +17,30 @@ import java.io.IOException
 import java.lang.Exception
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.collections.ArrayList
 
 private const val TAG = "MAIN_ACTIVITY"
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var imageButton1: ImageButton
+//    private lateinit var imageButton1: ImageButton  // replace with lists for the 4 photo collage
+    private lateinit var imageButtons: List<ImageButton> // note the list of android classes...
     private lateinit var mainView: View
 
-    private var newPhotoPath: String? = null
-    private var visibleImagePath: String? = null
+//    private var newPhotoPath: String? = null
+//    private var visibleImagePath: String? = null
+    private var photoPaths: ArrayList<String?> = arrayListOf(null, null, null, null)
+    // arrayList is used for photoPaths instead of a kotlin List because ArrayList can be saved in
+    // a savedInstanceState() function.  It is a mutable list.
+    private var whichImageIndex: Int? = null
+    private var currentPhotoPath: String? = null
 
-    private val NEW_PHOTO_PATH_KEY = "com.smeiskaudio.collage.NEW_PHOTO_PATH_KEY"
-    private val VISIBLE_IMAGE_PATH_KEY = "com.smeiskaudio.collage.VISIBLE_IMAGE_PATH_KEY"
+//    private val NEW_PHOTO_PATH_KEY = "com.smeiskaudio.collage.NEW_PHOTO_PATH_KEY"
+//    private val VISIBLE_IMAGE_PATH_KEY = "com.smeiskaudio.collage.VISIBLE_IMAGE_PATH_KEY"
+
+    private val PHOTO_PATH_LIST_KEY = "new photo path key"
+    private val IMAGE_INDEX_KEY = "image index key"
+    private val CURRENT_PHOTO_PATH_KEY = "current photo path key"
 
     private val cameraActivityLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -40,8 +51,8 @@ class MainActivity : AppCompatActivity() {
     private fun handleImage(result: ActivityResult) {
         when (result.resultCode) {
             RESULT_OK -> {
-                Log.d(TAG, "Result ok, user took picture, image at $newPhotoPath")
-                visibleImagePath = newPhotoPath
+                Log.d(TAG, "Result ok, user took picture, image at $currentPhotoPath")
+                whichImageIndex?.let { index -> photoPaths[index] = currentPhotoPath } // keep track of what belongs at which image view.
             }
             RESULT_CANCELED -> {
                 Log.d(TAG, "Result canceled, no picture taken")
@@ -53,30 +64,49 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        Log.d(TAG, "onCreate $newPhotoPath")
+        whichImageIndex = savedInstanceState?.getInt(IMAGE_INDEX_KEY)
+        currentPhotoPath = savedInstanceState?.getString(CURRENT_PHOTO_PATH_KEY)
+        photoPaths = savedInstanceState?.getStringArrayList(PHOTO_PATH_LIST_KEY)
+            ?: arrayListOf(null, null, null, null)
 
-        newPhotoPath = savedInstanceState?.getString(NEW_PHOTO_PATH_KEY)
-        visibleImagePath = savedInstanceState?.getString(VISIBLE_IMAGE_PATH_KEY)
+//        newPhotoPath = savedInstanceState?.getString(NEW_PHOTO_PATH_KEY)
+//        visibleImagePath = savedInstanceState?.getString(VISIBLE_IMAGE_PATH_KEY)
 
         mainView = findViewById(R.id.content)
 
-        imageButton1 = findViewById(R.id.imageButton1)
-        imageButton1.setOnClickListener {
-            takePicture()
+        imageButtons = listOf(
+            findViewById(R.id.imageButton1),
+            findViewById(R.id.imageButton2),
+            findViewById(R.id.imageButton3),
+            findViewById(R.id.imageButton4)
+        )
+//        imageButton1 = findViewById(R.id.imageButton1)
+//        imageButton1.setOnClickListener {
+//            takePicture()
+//        }
+        for (imageButton in imageButtons) {
+            imageButton.setOnClickListener {ib ->
+                takePictureFor(ib as ImageButton) // need to specify the lambda here
+            }
         }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putString(NEW_PHOTO_PATH_KEY, newPhotoPath)
-        outState.putString(VISIBLE_IMAGE_PATH_KEY, visibleImagePath)
+        outState.putStringArrayList(PHOTO_PATH_LIST_KEY, photoPaths)
+        outState.putString(CURRENT_PHOTO_PATH_KEY, currentPhotoPath)
+        whichImageIndex?.let { index -> outState.putInt(IMAGE_INDEX_KEY, index) }
     }
 
-    private fun takePicture() {
+    private fun takePictureFor(imageButton: ImageButton) {
+
+        val index = imageButtons.indexOf(imageButton)
+        whichImageIndex = index
+
         val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
         val (photoFile, photoFilePath) = createImageFile()
         if (photoFile != null) {
-            newPhotoPath = photoFilePath
+            currentPhotoPath = photoFilePath
             val photoUri = FileProvider.getUriForFile( // reference work to tell camera app where to save file
                 this,
                 "com.smeiskaudio.collage.fileprovider",
@@ -103,10 +133,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        Log.d(TAG, "on window focus changed $hasFocus visible image at $visibleImagePath")
+        Log.d(TAG, "on window focus changed $hasFocus visible image at $currentPhotoPath")
         if (hasFocus) {
-            visibleImagePath?.let { imagePath ->
-                loadImage(imageButton1, imagePath) }
+//            visibleImagePath?.let { imagePath ->
+//                loadImage(imageButton1, imagePath) }
+
+            // *** The below zip function did not work, no images loaded ***
+                /*imageButtons.zip(photoPaths) {imageButton, photoPath -> {
+                 photoPath?.let {
+                     loadImage(imageButton, photoPath)
+                 }
+                }}*/
+            for (index in imageButtons.indices) { // for (index in 0 until imageButtons.size)
+                val photoPath = photoPaths[index]
+                val imageButton = imageButtons[index]
+                if (photoPath != null) {
+                    loadImage(imageButton, photoPath)
+                }
+            }
         }
     }
 
